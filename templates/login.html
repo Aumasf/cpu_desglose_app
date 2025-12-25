@@ -1,25 +1,26 @@
 <!doctype html>
-<html>
+<html lang="es">
 <head>
-  <meta charset="utf-8">
-  <title>Login CPU</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; }
-    .box { max-width: 420px; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
-    .err { color: #b00020; margin-bottom: 10px; }
-    input { width: 100%; padding: 10px; margin: 6px 0; }
-    button { padding: 10px 14px; }
-  </style>
+  <meta charset="utf-8" />
+  <title>Login</title>
 </head>
 <body>
-  <div class="box">
-    <h2>Login</h2>
-    {% if error %}<div class="err">{{ error }}</div>{% endif %}
-    <form method="post">
-      <label>Contraseña</label>
-      <input type="password" name="password" required>
-      <button type="submit">Entrar</button>
-    </form>
-  </div>
+  <h3>Ingreso</h3>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>
+        {% for m in messages %}
+          <li style="color:red;">{{ m }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" action="/login">
+    <label>Contraseña:</label>
+    <input type="password" name="password" required />
+    <button type="submit">Entrar</button>
+  </form>
 </body>
 </html>

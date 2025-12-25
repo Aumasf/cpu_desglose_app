@@ -1,38 +1,32 @@
+from __future__ import annotations
+
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).resolve().parent
 
-UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
-OUTPUT_DIR = os.path.join(BASE_DIR, "static", "output")
+DATA_DIR = BASE_DIR / "data"
+SERVICES_DIR = BASE_DIR / "services"
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
+TMP_DIR = BASE_DIR / "tmp"
 
-TEMPLATE_PDF_PATH = os.path.join(BASE_DIR, "static", "template_desglose.pdf")
-DEFAULT_LOGO_PATH = os.path.join(BASE_DIR, "static", "default_logo.png")
+# Asegurar carpetas
+DATA_DIR.mkdir(exist_ok=True)
+STATIC_DIR.mkdir(exist_ok=True)
+TMP_DIR.mkdir(exist_ok=True)
 
-# Coordenadas (en puntos PDF) – AJUSTÁ SOLO ESTO para ubicar texto/logo
-# 1 punto = 1/72 inch
-# A4: 595 x 842 aprox. (portrait)
-LOGO_X = 430
-LOGO_Y = 760
-LOGO_W = 140
-LOGO_H = 55
+# Archivos esperados
+MATCH_XLSX_PATH = DATA_DIR / "match.xlsx"  # (no lo usamos en este modo prueba)
+DEFAULT_LOGO_PATH = STATIC_DIR / "default_logo.png"
+TEMPLATE_PDF_PATH = STATIC_DIR / "template_desglose.pdf"
 
-# Posición de la descripción (tercera fila, a la derecha del N° ítem)
-DESC_X = 220
-DESC_Y = 775
-DESC_MAX_WIDTH = 330  # ancho para "wrap"
-DESC_FONT_SIZE = 8    # más chico para que se lea
-DESC_LEADING = 9
+load_dotenv()
 
-# Fuente: NO usamos calibri.ttf (archivo externo).
-# ReportLab NO trae Calibri por defecto. Si querés Calibri, necesitás el TTF.
-# Aquí dejamos Helvetica para evitar errores.
-FONT_NAME = "Helvetica"
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
 
-# Encabezados aceptados (normalizados sin acentos)
-HEADER_CANDIDATES = [
-    "descripcion",
-    "descripciones",
-    "descripcion del bien",
-    "descripcion del item",
-    "descripcion del ítem",  # igual normaliza
-]
+if not APP_PASSWORD:
+    # No rompemos el arranque, pero avisamos en consola.
+    print("⚠️ APP_PASSWORD no está definido en .env (o no se cargó).")

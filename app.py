@@ -1,69 +1,126 @@
+from __future__ import annotations
+
 import os
-import uuid
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
 
-from flask import Flask, render_template, request, send_file
+from config import (
+    SECRET_KEY,
+    APP_PASSWORD,
+    TEMPLATE_PDF_PATH,
+    DEFAULT_LOGO_PATH,
+)
 
-from config import TMP_DIR, DEFAULT_LOGO_PATH
-from services.extract_items import extract_descriptions_from_excel
-from services.pdf_builder_simple import build_pdf_from_template_simple
+from services.extract_items import extract_items_from_excel_bytes
+from services.pdf_builder import build_pdf_from_template
 
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB
+app.secret_key = SECRET_KEY
 
 
-def _ensure_dirs():
-    os.makedirs(TMP_DIR, exist_ok=True)
+def _is_logged_in() -> bool:
+    return bool(session.get("logged_in"))
 
 
 @app.get("/")
-def index():
-    return render_template("index.html", error=None)
+def home():
+    if not _is_logged_in():
+        return redirect(url_for("login"))
+    return render_template("index.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        pwd = request.form.get("password", "")
+        if pwd and APP_PASSWORD and pwd == APP_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("home"))
+        flash("Contraseña incorrecta.")
+        return redirect(url_for("login"))
+    return render_template("login.html")
+
+
+@app.get("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 @app.post("/generate")
 def generate():
-    _ensure_dirs()
+    if not _is_logged_in():
+        return redirect(url_for("login"))
+
+    # Excel obligatorio
+    excel_file = request.files.get("excel")
+    if not excel_file or excel_file.filename.strip() == "":
+        flash("Debes subir un archivo Excel.")
+        return redirect(url_for("home"))
+
+    excel_bytes = excel_file.read()
+    if not excel_bytes:
+        flash("El Excel está vacío o no se pudo leer.")
+        return redirect(url_for("home"))
+
+    # Fecha obligatoria (viene como YYYY-MM-DD desde <input type="date">)
+    date_raw = request.form.get("fecha", "").strip()
+    if not date_raw:
+        flash("Debes elegir una fecha.")
+        return redirect(url_for("home"))
 
     try:
-        if "excel" not in request.files:
-            return render_template("index.html", error="No se subió el Excel.")
+        dt = datetime.strptime(date_raw, "%Y-%m-%d")
+        fecha_ddmmyyyy = dt.strftime("%d/%m/%Y")
+    except ValueError:
+        flash("Fecha inválida. Usa el selector calendario.")
+        return redirect(url_for("home"))
 
-        excel = request.files["excel"]
-        if not excel or excel.filename.strip() == "":
-            return render_template("index.html", error="No se subió el Excel.")
+    # Logo opcional
+    logo_file = request.files.get("logo")
+    logo_bytes = None
+    if logo_file and logo_file.filename.strip():
+        logo_bytes = logo_file.read()
+        if not logo_bytes:
+            logo_bytes = None
 
-        run_id = str(uuid.uuid4())
-        excel_path = os.path.join(TMP_DIR, f"oferta_{run_id}.xlsx")
-        excel.save(excel_path)
+    # Cargar template PDF
+    if not TEMPLATE_PDF_PATH.exists():
+        flash(f"No existe el template PDF en: {TEMPLATE_PDF_PATH}")
+        return redirect(url_for("home"))
+    template_pdf_bytes = TEMPLATE_PDF_PATH.read_bytes()
 
-        # Logo opcional
-        logo_path = DEFAULT_LOGO_PATH
-        if "logo" in request.files:
-            logo = request.files["logo"]
-            if logo and logo.filename.strip() != "":
-                ext = os.path.splitext(logo.filename)[1].lower() or ".png"
-                logo_path = os.path.join(TMP_DIR, f"logo_{run_id}{ext}")
-                logo.save(logo_path)
+    # Cargar logo default
+    default_logo_bytes = DEFAULT_LOGO_PATH.read_bytes() if DEFAULT_LOGO_PATH.exists() else None
 
-        descriptions = extract_descriptions_from_excel(excel_path)
-        if not descriptions:
-            return render_template(
-                "index.html",
-                error="No se encontraron descripciones en el Excel (revisá el encabezado: Descripción / Descripción del Bien / etc.)."
-            )
-
-        out_pdf = os.path.join(TMP_DIR, f"CPU_simple_{run_id}.pdf")
-        build_pdf_from_template_simple(
-            descriptions=descriptions,
-            out_pdf_path=out_pdf,
-            logo_path=logo_path
-        )
-
-        return send_file(out_pdf, as_attachment=True, download_name="CPU_simple.pdf")
-
+    # Extraer ítems del Excel
+    try:
+        _meta, items = extract_items_from_excel_bytes(excel_bytes)
     except Exception as e:
-        return render_template("index.html", error=f"Error: {e}")
+        flash(str(e))
+        return redirect(url_for("home"))
+
+    # Construir PDF
+    try:
+        pdf_bytes = build_pdf_from_template(
+            template_pdf_bytes=template_pdf_bytes,
+            items=items,
+            fecha_ddmmyyyy=fecha_ddmmyyyy,
+            logo_bytes=logo_bytes,
+            default_logo_bytes=default_logo_bytes,
+        )
+    except Exception as e:
+        flash(f"Error generando PDF: {e}")
+        return redirect(url_for("home"))
+
+    return send_file(
+        os.path.join("tmp", "desglose.pdf"),
+        as_attachment=True,
+        download_name="desglose.pdf",
+        mimetype="application/pdf",
+        data=pdf_bytes,  # Flask moderno permite data=bytes
+    )
 
 
 if __name__ == "__main__":

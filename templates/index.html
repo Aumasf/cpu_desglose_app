@@ -2,34 +2,49 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Generar CPU (simple)</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    .box { max-width: 520px; border: 1px solid #ddd; padding: 20px; border-radius: 8px; }
-    .err { color: #b00020; margin-bottom: 10px; font-weight: 600; }
-    label { display:block; margin-top: 12px; }
-    button { margin-top: 18px; padding: 10px 16px; }
-    .hint { font-size: 12px; color: #666; margin-top: 6px; }
-  </style>
+  <title>Generar Desglose</title>
 </head>
 <body>
-  <h1>Generar CPU (simple)</h1>
-
-  {% if error %}
-    <div class="err">{{ error }}</div>
-  {% endif %}
-
-  <div class="box">
-    <form action="/generate" method="post" enctype="multipart/form-data">
-      <label>Excel de Oferta:</label>
-      <input type="file" name="excel" accept=".xlsx,.xlsm" required />
-
-      <label>Logo (opcional):</label>
-      <input type="file" name="logo" accept=".png,.jpg,.jpeg" />
-      <div class="hint">Si no se sube, se usa el default.</div>
-
-      <button type="submit">Generar PDF</button>
-    </form>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3>Generar PDF (modo prueba)</h3>
+    <a href="/logout">Salir</a>
   </div>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>
+        {% for m in messages %}
+          <li style="color:red;">{{ m }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" action="/generate" enctype="multipart/form-data">
+    <div>
+      <label>Fecha:</label>
+      <input type="date" name="fecha" required />
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>Excel de oferta:</label>
+      <input type="file" name="excel" accept=".xlsx,.xls,.xlsm" required />
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>Logo (opcional):</label>
+      <input type="file" name="logo" accept="image/*" />
+    </div>
+
+    <div style="margin-top:15px;">
+      <button type="submit">Generar PDF</button>
+    </div>
+  </form>
+
+  <hr>
+  <p>
+    Este modo prueba imprime solo: logo + (fecha, item, descripción) sobre el template PDF.
+    Para ajustar posiciones, editá constantes en <code>services/pdf_builder.py</code>.
+  </p>
 </body>
 </html>
